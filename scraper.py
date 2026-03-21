@@ -4,6 +4,7 @@ import re
 import time
 import random
 import requests
+from bs4 import BeautifulSoup
 from models import NewsItem, ScrapeResult
 from config import (
     SOHU_API_URL, HEADERS, PAGE_SIZE, MAX_PAGES,
@@ -120,3 +121,25 @@ def fetch_all(progress_cb=None) -> ScrapeResult:
     except Exception as e:
         result.error_msg = f"数据解析失败: {e}"
     return result
+
+
+def fetch_article_text(url: str) -> str:
+    """抓取文章详情页的正文内容"""
+    try:
+        if not url.startswith("http"):
+            url = "https://www.sohu.com" + url
+        resp = requests.get(url, headers={
+            "User-Agent": HEADERS["User-Agent"],
+        }, timeout=15)
+        resp.encoding = "utf-8"
+        soup = BeautifulSoup(resp.text, "html.parser")
+        # 搜狐文章正文在 article 或 #mp-editor 里
+        article = soup.select_one("article") or soup.select_one("#mp-editor")
+        if article:
+            text = article.get_text("\n", strip=True)
+            # 去掉搜狐尾部固定文字
+            text = re.sub(r"\n*返回搜狐，查看更多\s*$", "", text)
+            return text.strip()
+        return ""
+    except Exception:
+        return ""

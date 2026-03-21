@@ -4,4 +4,4 @@ dist/
 build/
 *.spec
 .news_history.json
-*.txt
+搜狐*.txt

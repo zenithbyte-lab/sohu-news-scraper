@@ -1,8 +1,9 @@
 """搜狐国际新闻采集器 - 后台工作线程"""
 
 from PyQt5.QtCore import QThread, pyqtSignal, QTimer, QObject
-from models import ScrapeResult
+from models import ScrapeResult, NewsItem
 from scraper import fetch_all
+from exporter import export_to_folder
 
 
 class ScrapeWorker(QThread):
@@ -14,6 +15,28 @@ class ScrapeWorker(QThread):
         self.progress.emit("正在采集国际新闻...")
         result = fetch_all(progress_cb=lambda msg: self.progress.emit(msg))
         self.finished.emit(result)
+
+
+class ExportWorker(QThread):
+    """导出工作线程 (逐条抓正文, 较耗时)"""
+    finished = pyqtSignal(int, str)  # (导出数量, 文件夹路径)
+    progress = pyqtSignal(str)
+    error = pyqtSignal(str)
+
+    def __init__(self, news_list: list, folder: str, parent=None):
+        super().__init__(parent)
+        self._news_list = news_list
+        self._folder = folder
+
+    def run(self):
+        try:
+            count = export_to_folder(
+                self._news_list, self._folder,
+                progress_cb=lambda m: self.progress.emit(m)
+            )
+            self.finished.emit(count, self._folder)
+        except Exception as e:
+            self.error.emit(str(e))
 
 
 class TimerManager(QObject):

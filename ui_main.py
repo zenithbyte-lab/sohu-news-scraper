@@ -10,8 +10,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QFont
 from config import APP_NAME, APP_VERSION, WINDOW_WIDTH, WINDOW_HEIGHT, TIMER_OPTIONS
 from models import NewsItem, ScrapeResult
-from worker import ScrapeWorker, TimerManager
-from exporter import export_to_folder
+from worker import ScrapeWorker, ExportWorker, TimerManager
 from history import load_seen_ids, mark_all_seen, clear_history, get_history_info
 from ui_widgets import (
     build_toolbar, build_new_banner, build_filter_bar,
@@ -194,6 +193,17 @@ class MainWindow(QMainWindow):
             return
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         sub = f"{folder}/搜狐国际新闻_{ts}"
-        count = export_to_folder(self._filtered, sub)
-        QMessageBox.information(self, "导出成功",
-            f"已导出 {count} 条到:\n{sub}")
+        self.btn_export.setEnabled(False)
+        self.btn_export.setText("导出中 (正在抓取正文)...")
+        self.progress.setVisible(True)
+        self._export_worker = ExportWorker(list(self._filtered), sub)
+        self._export_worker.progress.connect(lambda m: self.statusBar().showMessage(m))
+        self._export_worker.finished.connect(self._on_export_done)
+        self._export_worker.error.connect(lambda e: QMessageBox.warning(self, "导出失败", e))
+        self._export_worker.start()
+
+    def _on_export_done(self, count, folder):
+        self.progress.setVisible(False)
+        self.btn_export.setEnabled(True)
+        self.btn_export.setText("  导出到文件夹 (每条新闻单独TXT)  ")
+        QMessageBox.information(self, "导出成功", f"已导出 {count} 条到:\n{folder}")
